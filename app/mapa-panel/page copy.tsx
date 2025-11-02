@@ -9,87 +9,50 @@ import { GeoSearchControl, OpenStreetMapProvider } from "leaflet-geosearch"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import dynamic from "next/dynamic"
-import { 
-  Navigation, 
-  Minimize2, 
-  Maximize2, 
-  X, 
-  Clock, 
-  Calendar, 
-  Eye, 
-  Leaf, 
-  Droplets, 
-  MapPin, 
-  Layers, 
-  Search, 
-  Home, 
-  LogOut, 
-  Map, 
-  Plus, 
-  Satellite, 
-  Zap, 
-  BarChart as BarChartIcon, 
-  Download 
-} from "lucide-react"
+// Se añade BarChart para el nuevo botón
+import { Navigation, Minimize2, Maximize2, X, Clock, Calendar, Eye, Leaf, Droplets, MapPin, Layers, Search, Home, LogOut, Map, Plus, Satellite, Zap, BarChart, Download } from "lucide-react"
 import toast from "react-hot-toast"
 import Image from "next/image"
 import Link from "next/link"
+
+// Importar tu hook personalizado
 import { useIsMobile } from "@/hooks/use-mobile"
-import { 
-  Bar, 
-  CartesianGrid, 
-  Legend, 
-  ResponsiveContainer, 
-  XAxis, 
-  YAxis, 
-  BarChart,
-  Tooltip 
-} from "recharts"
 
-// CSS imports
-import "leaflet/dist/leaflet.css"
-import "leaflet-draw/dist/leaflet.draw.css"
-import "leaflet-geosearch/dist/geosearch.css"
-
-// Leaflet icons setup
-const setupLeafletIcons = () => {
+// 🔥 CORRECCIÓN: Mover los imports de CSS dentro de un efecto
+const setupLeafletStyles = () => {
   if (typeof window === 'undefined') return;
+  
+  // Cargar CSS dinámicamente
+  const styles = [
+    "leaflet/dist/leaflet.css",
+    "leaflet-draw/dist/leaflet.draw.css", 
+    "leaflet-geosearch/dist/geosearch.css"
+  ];
+  
+  styles.forEach(style => {
+    if (!document.querySelector(`link[href*="${style}"]`)) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = `/${style}`;
+      document.head.appendChild(link);
+    }
+  });
+};
 
+// 🔥 CORRECCIÓN: Mover la configuración de Leaflet dentro de una función
+const setupLeafletIcons = () => {
+  if (typeof window === 'undefined' || !L.Icon.Default) return;
+  
   delete (L.Icon.Default.prototype as any)._getIconUrl;
   L.Icon.Default.mergeOptions({
     iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
     iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
     shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
   });
-};
-
-// Map Resizer Component
-const MapResizer: React.FC = () => {
-  const map = useMap();
-
-  useEffect(() => {
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 0);
-
-    const handleResize = () => {
-      setTimeout(() => {
-        map.invalidateSize();
-      }, 100);
-    };
-
-    window.addEventListener('resize', handleResize);
-    
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [map]);
-
-  return null;
 };
 
 // Interfaces
@@ -118,7 +81,7 @@ interface HistoricalImage {
   adjusted_images: number[]
 }
 
-// Analysis History Modal Props
+// === NUEVO MODAL DE HISTORIAL DE ANÁLISIS (Integrado aquí) ===
 interface AnalysisHistoryModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -132,49 +95,49 @@ const TRENDS = {
   STABLE: 'estable',
 };
 
-// Custom Tooltip for Recharts
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    const vegData = payload.find((p: any) => p.dataKey === 'avgVegetation');
-    const waterData = payload.find((p: any) => p.dataKey === 'avgWater');
-    const count = payload.find((p: any) => p.dataKey === 'count');
-
-    return (
-      <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm backdrop-blur-sm">
-        <p className="font-semibold text-gray-900 mb-2">{label}</p>
-        <div className="space-y-1">
-          <p className="flex items-center gap-2">
-            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-            <span className="text-gray-700">Lirio:</span>
-            <span className="font-medium text-green-600">{vegData?.value.toFixed(2) || 0}%</span>
-          </p>
-          <p className="flex items-center gap-2">
-            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-            <span className="text-gray-700">Agua:</span>
-            <span className="font-medium text-blue-600">{waterData?.value.toFixed(2) || 0}%</span>
-          </p>
-          <p className="flex items-center gap-2 pt-1 border-t border-gray-100">
-            <span className="text-gray-600">Análisis:</span>
-            <span className="font-medium text-gray-900">{count?.value || 0}</span>
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-};
-
 const AnalysisHistoryModal: React.FC<AnalysisHistoryModalProps> = ({
   isOpen,
   onClose,
   historicalImages,
   ecosystemName,
 }) => {
+  // 🔥 CORRECCIÓN: Función segura para exportar CSV
+  const exportToCSV = useCallback(() => {
+    // Verificar que estamos en el cliente
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      console.warn('Exportación CSV no disponible en servidor');
+      return;
+    }
+    
+    try {
+      const headers = ['Mes', 'Promedio Lirio (%)', 'Promedio Agua (%)', 'Número de Análisis'];
+      const csvData = monthlyAverages.map(month => [
+        month.monthName,
+        month.avgVegetation,
+        month.avgWater,
+        month.count,
+      ]);
+      
+      const csvContent = [headers, ...csvData].map(row => row.join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `historial-analisis-${ecosystemName}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      toast.error('Error al exportar CSV');
+    }
+  }, [monthlyAverages, ecosystemName]);
+
   const monthlyAverages = useMemo(() => {
     const groupByMonth = (images: HistoricalImage[]) => {
       const groups: { [key: string]: (HistoricalImage & { monthName: string })[] } = {};
-
+      
       images.forEach(image => {
         const date = new Date(image.capture_date);
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -182,14 +145,14 @@ const AnalysisHistoryModal: React.FC<AnalysisHistoryModalProps> = ({
           year: 'numeric',
           month: 'long',
         });
-
+        
         if (!groups[monthKey]) {
           groups[monthKey] = [];
         }
-
+        
         groups[monthKey].push({ ...image, monthName });
       });
-
+      
       return groups;
     };
 
@@ -200,11 +163,11 @@ const AnalysisHistoryModal: React.FC<AnalysisHistoryModalProps> = ({
       const monthData = monthlyGroups[monthKey];
       const avgVegetation = monthData.reduce((sum, img) => sum + (img.vegetation_percentage || 0), 0) / monthData.length;
       const avgWater = monthData.reduce((sum, img) => sum + (img.water_percentage || 0), 0) / monthData.length;
-
+      
       return {
         monthKey,
         monthName: monthData[0].monthName,
-        shortName: monthData[0].monthName.split(' ')[0],
+        shortName: monthData[0].monthName.split(' ')[0], // Solo el nombre del mes
         avgVegetation: Number(avgVegetation.toFixed(2)),
         avgWater: Number(avgWater.toFixed(2)),
         count: monthData.length,
@@ -212,61 +175,28 @@ const AnalysisHistoryModal: React.FC<AnalysisHistoryModalProps> = ({
     });
   }, [historicalImages]);
 
-  const exportToCSV = useCallback(() => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') {
-      console.warn('Exportación CSV no disponible en servidor');
-      return;
-    }
-
-    try {
-      const headers = ['Mes', 'Promedio Lirio (%)', 'Promedio Agua (%)', 'Número de Análisis'];
-      const csvData = monthlyAverages.map(month => [
-        month.monthName,
-        month.avgVegetation,
-        month.avgWater,
-        month.count,
-      ]);
-
-      const csvContent = [headers, ...csvData].map(row => row.join(',')).join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `historial-analisis-${ecosystemName.replace(/\s+/g, '-')}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      
-      toast.success('CSV exportado correctamente');
-    } catch (error) {
-      console.error('Error al exportar CSV:', error);
-      toast.error('Error al exportar CSV');
-    }
-  }, [monthlyAverages, ecosystemName]);
-
   const trends = useMemo(() => {
     if (monthlyAverages.length < 2) {
       return { vegetation: 'stable', water: 'stable' };
     }
-
+    
     const first = monthlyAverages[monthlyAverages.length - 1];
     const last = monthlyAverages[0];
-
+    
     const vegTrend = last.avgVegetation > first.avgVegetation ? 'up' :
-      last.avgVegetation < first.avgVegetation ? 'down' : 'stable';
-
+                     last.avgVegetation < first.avgVegetation ? 'down' : 'stable';
+    
     const waterTrend = last.avgWater > first.avgWater ? 'up' :
-      last.avgWater < first.avgWater ? 'down' : 'stable';
-
+                       last.avgWater < first.avgWater ? 'down' : 'stable';
+    
     return { vegetation: vegTrend, water: waterTrend };
   }, [monthlyAverages]);
 
+  // Calcular máximo para escalar las barras
   const maxValue = useMemo(() => {
     const maxLirio = Math.max(...monthlyAverages.map(m => m.avgVegetation));
     const maxAgua = Math.max(...monthlyAverages.map(m => m.avgWater));
-    const maxVal = Math.max(maxLirio, maxAgua);
-    return Math.ceil(maxVal / 10) * 10 || 10;
+    return Math.ceil(Math.max(maxLirio, maxAgua) / 10) * 10 + 10; // Redondear al siguiente múltiplo de 10
   }, [monthlyAverages]);
 
   const getTrendIcon = (trend: string) => {
@@ -285,344 +215,286 @@ const AnalysisHistoryModal: React.FC<AnalysisHistoryModalProps> = ({
     }
   };
 
-  const getTrendBadgeVariant = (trend: string) => {
-    return trend === 'up' ? 'destructive' : trend === 'down' ? 'default' : 'secondary';
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl w-full max-h-[95vh] overflow-hidden flex flex-col p-0 z-[10060]">
-        <DialogTitle className="sr-only">
-          Análisis Histórico - {ecosystemName}
-        </DialogTitle>
-
-        {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-lg">
-              <BarChartIcon className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Análisis Comparativo</h2>
-              <p className="text-sm text-gray-600 mt-1">{ecosystemName}</p>
-            </div>
+      <DialogContent className="max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col z-[10060]">
+        {/* Header minimalista */}
+        <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <div>
+            <h2 className="text-lg font-medium text-gray-900">Análisis Comparativo Mensual</h2>
+            <p className="text-sm text-gray-600 mt-1">{ecosystemName}</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={exportToCSV}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2 border-gray-300 hover:bg-gray-50 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Exportar CSV
-            </Button>
-            <Button
-              onClick={onClose}
-              variant="ghost"
-              size="sm"
-              className="h-9 w-9 p-0 hover:bg-gray-100 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
+          <Button 
+            onClick={exportToCSV} 
+            variant="outline" 
+            size="sm"
+            className="flex items-center gap-2 border-gray-300"
+          >
+            <Download className="w-4 h-4" />
+            Exportar CSV
+          </Button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/50">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-white/80 backdrop-blur-sm border-gray-200 hover:shadow-sm transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">Tendencia Lirio</p>
-                    <div className={`text-lg font-semibold ${getTrendColor(trends.vegetation, 'vegetation')}`}>
-                      {getTrendIcon(trends.vegetation)} {trends.vegetation === 'up' ? 'En aumento' : 
-                       trends.vegetation === 'down' ? 'En disminución' : 'Estable'}
-                    </div>
-                  </div>
-                  <Badge variant={getTrendBadgeVariant(trends.vegetation)} className="ml-2">
-                    {trends.vegetation === 'up' ? 'Alerta' : trends.vegetation === 'down' ? 'Mejorando' : 'Estable'}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white/80 backdrop-blur-sm border-gray-200 hover:shadow-sm transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">Tendencia Agua</p>
-                    <div className={`text-lg font-semibold ${getTrendColor(trends.water, 'water')}`}>
-                      {getTrendIcon(trends.water)} {trends.water === 'up' ? 'En aumento' : 
-                       trends.water === 'down' ? 'En disminución' : 'Estable'}
-                    </div>
-                  </div>
-                  <Badge variant={getTrendBadgeVariant(trends.water)} className="ml-2">
-                    {trends.water === 'up' ? 'Mejorando' : trends.water === 'down' ? 'Alerta' : 'Estable'}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white/80 backdrop-blur-sm border-gray-200 hover:shadow-sm transition-shadow">
-              <CardContent className="p-4">
-                <div className="text-center">
-                  <p className="text-sm font-medium text-gray-600 mb-1">Período Analizado</p>
-                  <div className="text-2xl font-bold text-gray-900">{monthlyAverages.length}</div>
-                  <p className="text-xs text-gray-500 mt-1">meses</p>
-                  <div className="text-xs text-gray-400 mt-2">
-                    {monthlyAverages.reduce((sum, month) => sum + month.count, 0)} análisis totales
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Contenido compacto */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Tarjetas de resumen compactas */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <div className="text-xs text-gray-500 mb-2">Tendencia Lirio</div>
+              <div className={`text-sm font-medium ${getTrendColor(trends.vegetation, 'vegetation')}`}>
+                <span className="text-base mr-1">{getTrendIcon(trends.vegetation)}</span>
+                {trends.vegetation === 'up' ? 'En aumento' : trends.vegetation === 'down' ? 'En disminución' : 'Estable'}
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <div className="text-xs text-gray-500 mb-2">Tendencia Agua</div>
+              <div className={`text-sm font-medium ${getTrendColor(trends.water, 'water')}`}>
+                <span className="text-base mr-1">{getTrendIcon(trends.water)}</span>
+                {trends.water === 'up' ? 'En aumento' : trends.water === 'down' ? 'En disminución' : 'Estable'}
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <div className="text-xs text-gray-500 mb-2">Período Analizado</div>
+              <div className="text-sm font-medium text-gray-900">{monthlyAverages.length} meses</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {monthlyAverages.reduce((sum, month) => sum + month.count, 0)} análisis totales
+              </div>
+            </div>
           </div>
 
-          {/* Double Bar Chart */}
-          <Card className="bg-white/80 backdrop-blur-sm border-gray-200">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <BarChartIcon className="w-5 h-5 text-blue-600" />
-                Distribución Mensual de Cobertura
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80 w-full">
-                {monthlyAverages.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={monthlyAverages}
-                      margin={{
-                        top: 10,
-                        right: 20,
-                        left: 0,
-                        bottom: 30,
-                      }}
-                      barGap={3}
-                      barCategoryGap="15%"
-                    >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis
-                        dataKey="monthName"
-                        angle={-45}
-                        textAnchor="end"
-                        interval={0}
-                        height={70}
-                        tick={{ fontSize: 12, fill: '#6B7280' }}
-                        padding={{ left: 10, right: 10 }}
-                      />
-                      <YAxis
-                        tickFormatter={(value) => `${value}%`}
-                        domain={[0, maxValue]}
-                        tick={{ fontSize: 12, fill: '#6B7280' }}
-                        width={40}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend
-                        wrapperStyle={{ paddingTop: '10px' }}
-                        iconType="square"
-                        formatter={(value) => {
-                          if (value === 'avgVegetation') return 'Lirio Acuático';
-                          if (value === 'avgWater') return 'Agua';
-                          return value;
-                        }}
-                      />
-                      <Bar
-                        dataKey="avgVegetation"
-                        name="Lirio Acuático"
-                        fill="#10B981"
-                        radius={[2, 2, 0, 0]}
-                      />
-                      <Bar
-                        dataKey="avgWater"
-                        name="Agua"
-                        fill="#3B82F6"
-                        radius={[2, 2, 0, 0]}
-                      />
-                      <Bar dataKey="count" name="Número de Análisis" fill="transparent" hide={true} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                    <BarChartIcon className="w-12 h-12 text-gray-300 mb-2" />
-                    <p>No hay datos suficientes para generar el gráfico</p>
-                  </div>
-                )}
+          {/* Gráfica de Barras Doble */}
+          <div className="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Distribución Mensual de Cobertura</h3>
+            
+            <div className="h-64 relative">
+              {/* Eje Y con valores */}
+              <div className="absolute left-0 top-0 bottom-0 w-10 flex flex-col justify-between text-xs text-gray-500">
+                {[maxValue, maxValue * 0.75, maxValue * 0.5, maxValue * 0.25, 0].map((value) => (
+                  <div key={value} className="text-right pr-2">{value}%</div>
+                ))}
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Stacked Bar Chart */}
-          <Card className="bg-white/80 backdrop-blur-sm border-gray-200">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Layers className="w-5 h-5 text-blue-600" />
-                Composición Total Mensual
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-48 space-y-3">
-                {monthlyAverages.map((month) => {
-                  const total = month.avgVegetation + month.avgWater;
-                  const other = 100 - total;
-
-                  return (
-                    <div key={month.monthKey} className="flex items-center gap-3">
-                      <div className="w-24 text-sm font-medium text-gray-700">{month.shortName}</div>
-                      <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden flex shadow-inner">
-                        <div
-                          className="bg-green-500 h-full transition-all duration-500 flex items-center justify-center hover:bg-green-600"
-                          style={{ width: `${month.avgVegetation}%` }}
-                          title={`Lirio: ${month.avgVegetation}%`}
+              
+              {/* Contenedor de la gráfica */}
+              <div className="ml-10 h-full">
+                {/* Líneas de guía horizontales */}
+                <div className="absolute left-0 right-0 h-full flex flex-col justify-between">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <div key={i} className="border-t border-gray-100"></div>
+                  ))}
+                </div>
+                
+                {/* Barras */}
+                <div className="flex items-end justify-between h-full pl-4 pr-2 gap-3">
+                  {monthlyAverages.map((month, index) => (
+                    <div key={month.monthKey} className="flex flex-col items-center flex-1">
+                      {/* Barras */}
+                      <div className="flex items-end justify-center gap-1 w-full mb-2" style={{ height: '90%' }}>
+                        {/* Barra de lirio */}
+                        <div 
+                          className="flex flex-col items-center relative group"
+                          style={{ height: `${(month.avgVegetation / maxValue) * 100}%` }}
                         >
-                          {month.avgVegetation > 15 && (
-                            <span className="text-xs text-white font-medium px-1">{month.avgVegetation}%</span>
-                          )}
+                          <div 
+                            className="w-4 bg-green-500 rounded-t hover:bg-green-600 transition-colors cursor-help"
+                            style={{ height: '100%' }}
+                            title={`Lirio: ${month.avgVegetation}%`}
+                          >
+                            {/* Valor sobre la barra */}
+                            <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {month.avgVegetation}%
+                            </div>
+                          </div>
                         </div>
-                        <div
-                          className="bg-blue-500 h-full transition-all duration-500 flex items-center justify-center hover:bg-blue-600"
-                          style={{ width: `${month.avgWater}%` }}
-                          title={`Agua: ${month.avgWater}%`}
+                        
+                        {/* Barra de agua */}
+                        <div 
+                          className="flex flex-col items-center relative group"
+                          style={{ height: `${(month.avgWater / maxValue) * 100}%` }}
                         >
-                          {month.avgWater > 15 && (
-                            <span className="text-xs text-white font-medium px-1">{month.avgWater}%</span>
-                          )}
+                          <div 
+                            className="w-4 bg-blue-500 rounded-t hover:bg-blue-600 transition-colors cursor-help"
+                            style={{ height: '100%' }}
+                            title={`Agua: ${month.avgWater}%`}
+                          >
+                            {/* Valor sobre la barra */}
+                            <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {month.avgWater}%
+                            </div>
+                          </div>
                         </div>
-                        {other > 0 && (
-                          <div
-                            className="bg-gray-200 h-full hover:bg-gray-300 transition-colors"
-                            style={{ width: `${other}%` }}
-                            title={`Otros: ${other}%`}
-                          ></div>
-                        )}
                       </div>
-                      <div className="w-20 text-right text-sm font-medium text-gray-700">
-                        {total.toFixed(1)}%
+                      
+                      {/* Etiqueta del mes */}
+                      <div className="text-xs text-gray-600 text-center mt-2 h-8 flex items-center justify-center">
+                        <span className="transform -rotate-45 origin-center block whitespace-nowrap">
+                          {month.shortName}
+                        </span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-
-              <div className="flex justify-center gap-6 mt-6">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded shadow-sm"></div>
-                  <span className="text-sm text-gray-700">Lirio Acuático</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-blue-500 rounded shadow-sm"></div>
-                  <span className="text-sm text-gray-700">Agua</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-gray-200 rounded shadow-sm"></div>
-                  <span className="text-sm text-gray-700">Otros</span>
+                  ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+            
+            {/* Leyenda */}
+            <div className="flex justify-center gap-6 mt-6 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-green-500 rounded"></div>
+                <span className="text-gray-600">Lirio Acuático</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                <span className="text-gray-600">Agua</span>
+              </div>
+            </div>
+          </div>
 
-          {/* Data Table */}
-          <Card className="bg-white/80 backdrop-blur-sm border-gray-200">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-blue-600" />
-                Detalles por Mes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto rounded-lg border border-gray-200">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50/80">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wider border-b border-gray-200">
-                        Mes
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wider border-b border-gray-200">
-                        Lirio
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wider border-b border-gray-200">
-                        Agua
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wider border-b border-gray-200">
-                        Total
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wider border-b border-gray-200">
-                        Análisis
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wider border-b border-gray-200">
-                        Variación
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white">
-                    {monthlyAverages.map((month, index) => {
-                      const prevMonth = monthlyAverages[index + 1];
-                      const vegChange = prevMonth ? Number((month.avgVegetation - prevMonth.avgVegetation).toFixed(2)) : 0;
-                      const waterChange = prevMonth ? Number((month.avgWater - prevMonth.avgWater).toFixed(2)) : 0;
-                      const total = month.avgVegetation + month.avgWater;
+          {/* Gráfica de Barras Apiladas */}
+          <div className="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Composición Total Mensual</h3>
+            
+            <div className="h-48 space-y-3">
+              {monthlyAverages.map((month) => {
+                const total = month.avgVegetation + month.avgWater;
+                const other = 100 - total;
+                
+                return (
+                  <div key={month.monthKey} className="flex items-center gap-3">
+                    <div className="w-24 text-xs text-gray-600">{month.shortName}</div>
+                    
+                    {/* Barra apilada */}
+                    <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden flex">
+                      {/* Lirio */}
+                      <div 
+                        className="bg-green-500 h-full transition-all duration-500 flex items-center justify-center"
+                        style={{ width: `${month.avgVegetation}%` }}
+                        title={`Lirio: ${month.avgVegetation}%`}
+                      >
+                        {month.avgVegetation > 15 && (
+                          <span className="text-xs text-white font-medium">{month.avgVegetation}%</span>
+                        )}
+                      </div>
+                      
+                      {/* Agua */}
+                      <div 
+                        className="bg-blue-500 h-full transition-all duration-500 flex items-center justify-center"
+                        style={{ width: `${month.avgWater}%` }}
+                        title={`Agua: ${month.avgWater}%`}
+                      >
+                        {month.avgWater > 15 && (
+                          <span className="text-xs text-white font-medium">{month.avgWater}%</span>
+                        )}
+                      </div>
+                      
+                      {/* Resto */}
+                      {other > 0 && (
+                        <div 
+                          className="bg-gray-200 h-full"
+                          style={{ width: `${other}%` }}
+                          title={`Otros: ${other}%`}
+                        ></div>
+                      )}
+                    </div>
+                    
+                    {/* Valores numéricos */}
+                    <div className="w-20 text-right text-xs text-gray-500">
+                      {total.toFixed(1)}% total
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* Leyenda de la gráfica apilada */}
+            <div className="flex justify-center gap-4 mt-4 text-xs">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-green-500 rounded"></div>
+                <span className="text-gray-600">Lirio</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                <span className="text-gray-600">Agua</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-gray-200 rounded"></div>
+                <span className="text-gray-600">Otros</span>
+              </div>
+            </div>
+          </div>
 
-                      return (
-                        <tr key={month.monthKey} className="hover:bg-gray-50/80 transition-colors">
-                          <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">
-                            {month.monthName}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 bg-green-500 rounded-full shadow-sm"></div>
-                              <span className="font-semibold text-green-700">{month.avgVegetation}%</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full shadow-sm"></div>
-                              <span className="font-semibold text-blue-700">{month.avgWater}%</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-semibold">
-                            {total.toFixed(1)}%
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-center">
-                            <Badge variant="secondary" className="font-medium">
-                              {month.count}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            {prevMonth ? (
-                              <div className="space-y-1 min-w-[80px]">
-                                <div className={`flex items-center gap-1 text-xs font-medium ${
-                                  vegChange > 0 ? 'text-red-600' : 
-                                  vegChange < 0 ? 'text-green-600' : 'text-gray-500'
-                                }`}>
-                                  <span>{vegChange > 0 ? '↗' : vegChange < 0 ? '↘' : '→'}</span>
-                                  <span>{vegChange > 0 ? '+' : ''}{vegChange}%</span>
-                                </div>
-                                <div className={`flex items-center gap-1 text-xs font-medium ${
-                                  waterChange > 0 ? 'text-green-600' : 
-                                  waterChange < 0 ? 'text-red-600' : 'text-gray-500'
-                                }`}>
-                                  <span>{waterChange > 0 ? '↗' : waterChange < 0 ? '↘' : '→'}</span>
-                                  <span>{waterChange > 0 ? '+' : ''}{waterChange}%</span>
-                                </div>
+          {/* Tabla de datos compacta */}
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+              <h3 className="text-sm font-medium text-gray-900">Detalles por Mes</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium text-gray-500 text-xs uppercase tracking-wider">Mes</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-500 text-xs uppercase tracking-wider">Lirio</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-500 text-xs uppercase tracking-wider">Agua</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-500 text-xs uppercase tracking-wider">Total</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-500 text-xs uppercase tracking-wider">Análisis</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-500 text-xs uppercase tracking-wider">Variación</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {monthlyAverages.map((month, index) => {
+                    const prevMonth = monthlyAverages[index + 1];
+                    const vegChange = prevMonth ? Number((month.avgVegetation - prevMonth.avgVegetation).toFixed(2)) : 0;
+                    const waterChange = prevMonth ? Number((month.avgWater - prevMonth.avgWater).toFixed(2)) : 0;
+                    const total = month.avgVegetation + month.avgWater;
+                    
+                    return (
+                      <tr key={month.monthKey} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">
+                          {month.monthName}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span className="font-medium text-green-600">{month.avgVegetation}%</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span className="font-medium text-blue-600">{month.avgWater}%</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 font-medium">
+                          {total.toFixed(1)}%
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-center">
+                          {month.count}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {prevMonth ? (
+                            <div className="text-xs space-y-1">
+                              <div className={vegChange > 0 ? 'text-red-500' : vegChange < 0 ? 'text-green-500' : 'text-gray-400'}>
+                                {vegChange > 0 ? '+' : ''}{vegChange}%
                               </div>
-                            ) : (
-                              <span className="text-xs text-gray-400 font-medium">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                              <div className={waterChange > 0 ? 'text-green-500' : waterChange < 0 ? 'text-red-500' : 'text-gray-400'}>
+                                {waterChange > 0 ? '+' : ''}{waterChange}%
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
   );
-}
+};
 
 // Componente Modal de Historial (MODIFICADO)
 interface HistoryListModalProps {
@@ -1022,15 +894,10 @@ const getCurrentDrawnPolygon = (featureGroupRef: React.RefObject<L.FeatureGroup>
 }
 
 const GeoSearch: React.FC<{ onLocationFound: (label: string) => void }> = ({ onLocationFound }) => {
-  const map = useMap();
+  const map = useMap()
 
   useEffect(() => {
-    // Asegura que el mapa se vea completo cuando se agregan los controles
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 300);
-
-    const provider = new OpenStreetMapProvider();
+    const provider = new OpenStreetMapProvider()
     const searchControl = new (GeoSearchControl as any)({
       provider,
       style: "bar",
@@ -1038,27 +905,27 @@ const GeoSearch: React.FC<{ onLocationFound: (label: string) => void }> = ({ onL
       autoClose: true,
       keepResult: true,
       searchLabel: "Buscar dirección o lugar...",
-    });
+    })
 
-    map.addControl(searchControl);
+    map.addControl(searchControl)
 
     const handleLocationFound = (result: any) => {
       if (result.location && result.location.label) {
-        onLocationFound(result.location.label);
-        map.flyTo([result.location.y, result.location.x], 13);
+        onLocationFound(result.location.label)
+        map.flyTo([result.location.y, result.location.x], 13)
       }
-    };
+    }
 
-    map.on("geosearch/showlocation", handleLocationFound);
+    map.on("geosearch/showlocation", handleLocationFound)
 
     return () => {
-      map.removeControl(searchControl);
-      map.off("geosearch/showlocation", handleLocationFound);
-    };
-  }, [map, onLocationFound]);
+      map.removeControl(searchControl)
+      map.off("geosearch/showlocation", handleLocationFound)
+    }
+  }, [map, onLocationFound])
 
-  return null;
-};
+  return null
+}
 
 const DrawControl: React.FC<{ featureGroupRef: React.RefObject<L.FeatureGroup>; onCountUpdate: () => void }> = ({
   featureGroupRef,
@@ -1116,23 +983,18 @@ const DrawControl: React.FC<{ featureGroupRef: React.RefObject<L.FeatureGroup>; 
 }
 
 const MapViewController: React.FC<{ center: [number, number] | null; zoom: number }> = ({ center, zoom }) => {
-  const map = useMap();
+  const map = useMap()
 
   useEffect(() => {
-    // 🔹 Muy importante: asegurar que Leaflet calcule correctamente el tamaño del mapa
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 0);
-
     if (center) {
-      map.flyTo(center, zoom, { duration: 1.5 });
+      map.flyTo(center, zoom, { duration: 1.5 })
     }
-  }, [center, zoom, map]);
+  }, [center, zoom, map])
 
-  return null;
-};
+  return null
+}
 
-// CORRECCIÓN: Importar el PhotoAnalyzer modal con configuración segura
+// 🔥 CORRECCIÓN: Importar el PhotoAnalyzer modal con configuración segura
 const PhotoAnalyzerModal = dynamic(() => import("@/components/photo-analyzer"), {
   ssr: false,
   loading: () => (
@@ -1146,11 +1008,9 @@ const PhotoAnalyzerModal = dynamic(() => import("@/components/photo-analyzer"), 
 })
 
 const MapComponent: React.FC<{ onAnalyze?: (data: any) => void }> = ({ onAnalyze }) => {
-  // CORRECCIÓN: Configurar Leaflet solo en el cliente
-  const [isClient, setIsClient] = useState(false);
-  
+  // 🔥 CORRECCIÓN: Configurar Leaflet solo en el cliente
   useEffect(() => {
-    setIsClient(true);
+    setupLeafletStyles();
     setupLeafletIcons();
   }, []);
 
@@ -1164,54 +1024,10 @@ const MapComponent: React.FC<{ onAnalyze?: (data: any) => void }> = ({ onAnalyze
   const [locationName, setLocationName] = useState("")
   const [drawnItemsCount, setDrawnItemsCount] = useState(0)
   const [isPanelOpen, setIsPanelOpen] = useState(true)
-
+  
   const isMobile = useIsMobile()
+  
   const featureGroupRef = useRef<L.FeatureGroup>(null)
-  const mapRef = useRef<L.Map | null>(null)
-
-  // NUEVO: Estado para controlar cuándo el mapa está listo
-  const [isMapReady, setIsMapReady] = useState(false);
-
-  // NUEVO: Función para arreglar el tamaño del mapa
-  const fixMapSize = useCallback(() => {
-    if (mapRef.current) {
-      setTimeout(() => {
-        mapRef.current?.invalidateSize();
-        // Forzar un segundo redimensionamiento para asegurar
-        setTimeout(() => {
-          mapRef.current?.invalidateSize();
-        }, 50);
-      }, 0);
-    }
-  }, []);
-
-  // CORRECCIÓN: Arreglar el mapa cuando el panel se abre/cierra
-  useEffect(() => {
-    if (isMapReady) {
-      setTimeout(() => {
-        fixMapSize();
-      }, 300); // Esperar a que la animación del panel termine
-    }
-  }, [isPanelOpen, isMapReady, fixMapSize]);
-
-  // CORRECCIÓN: Arreglar el mapa cuando se selecciona un ecosistema
-  useEffect(() => {
-    if (isMapReady && selectedEcosystem) {
-      setTimeout(() => {
-        fixMapSize();
-      }, 100);
-    }
-  }, [selectedEcosystem, isMapReady, fixMapSize]);
-
-  // NUEVO: Manejar cuando el mapa está listo
-  const handleMapReady = useCallback((map: L.Map) => {
-    mapRef.current = map;
-    // Esperar un frame para que el DOM se estabilice
-    setTimeout(() => {
-      map.invalidateSize();
-      setIsMapReady(true);
-    }, 0);
-  }, []);
 
   const [isAnalyzerModalOpen, setIsAnalyzerModalOpen] = useState(false)
   const [polygonDataForAnalysis, setPolygonDataForAnalysis] = useState<any>(null)
@@ -1277,7 +1093,7 @@ const MapComponent: React.FC<{ onAnalyze?: (data: any) => void }> = ({ onAnalyze
             type: "Feature",
             geometry: {
               type: "Polygon",
-              coordinates: [polygonCoords.map(coord => [coord[1], coord[0]])]
+              coordinates: [polygonCoords.map(coord => [coord[1], coord[0]])] 
             },
             properties: {}
           }
@@ -1555,18 +1371,6 @@ const MapComponent: React.FC<{ onAnalyze?: (data: any) => void }> = ({ onAnalyze
     ? `fixed inset-0 z-[998] bg-white transform transition-transform duration-300 ${isPanelOpen ? 'translate-x-0' : '-translate-x-full'}`
     : `absolute top-16 left-0 bottom-0 bg-white shadow-lg transition-all duration-300 ${isPanelOpen ? 'w-80' : 'w-0'} overflow-hidden flex flex-col border-r border-gray-200 z-[998]`
 
-  // CORRECCIÓN: No renderizar el mapa hasta que estemos en el cliente
-  if (!isClient) {
-    return (
-      <div className="flex h-screen w-full bg-white items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando mapa...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen w-full bg-white">
       {/* Header */}
@@ -1576,7 +1380,7 @@ const MapComponent: React.FC<{ onAnalyze?: (data: any) => void }> = ({ onAnalyze
             <Image
               src="/imagenes/Logo_gob_hidalgo.svg"
               alt="Gobierno de Hidalgo"
-              width={isMobile ? 100 : 220}
+              width={isMobile ? 100 : 270}
               height={20}
               className="h-8 md:h-10"
             />
@@ -1745,24 +1549,7 @@ const MapComponent: React.FC<{ onAnalyze?: (data: any) => void }> = ({ onAnalyze
 
       {/* Mapa */}
       <div className="flex-1 relative mt-16">
-        <MapContainer 
-          center={mapCenter || [21.0, -99.0]} 
-          zoom={mapCenter ? 14 : 6} 
-          scrollWheelZoom={true} 
-          className="h-full w-full" 
-          zoomControl={false}
-          whenReady={() => {
-            // CORRECCIÓN: Forzar redimensionamiento cuando el mapa está listo
-            setTimeout(() => {
-              const mapElement = document.querySelector('.leaflet-container') as HTMLElement;
-              if (mapElement) {
-                mapElement.style.height = '100%';
-                mapElement.style.width = '100%';
-              }
-            }, 0);
-          }}
-          ref={handleMapReady}
-        >
+        <MapContainer center={mapCenter || [21.0, -99.0]} zoom={mapCenter ? 14 : 6} scrollWheelZoom={true} className="h-full w-full" zoomControl={false}>
           <LayersControl position="topright">
             <LayersControl.BaseLayer checked name="Mapa Estándar">
               <TileLayer attribution='© <a href="https://maps.google.com">Google Maps</a>' url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}" />
@@ -1775,9 +1562,6 @@ const MapComponent: React.FC<{ onAnalyze?: (data: any) => void }> = ({ onAnalyze
             </LayersControl.BaseLayer>
           </LayersControl>
 
-          {/* CORRECCIÓN: Agregar el componente MapResizer */}
-          <MapResizer />
-          
           <GeoSearch onLocationFound={handleLocationFound} />
           <DrawControl featureGroupRef={featureGroupRef} onCountUpdate={updateDrawnItemsCount} />
 

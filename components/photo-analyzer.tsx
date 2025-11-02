@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import type React from "react"
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
@@ -478,7 +478,20 @@ export const PhotoAnalyzerModal: React.FC<PhotoAnalyzerModalProps> = ({
   const configureFileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
+  // Función segura para crear URLs de objeto
+  const createObjectURL = (file: File): string => {
+    if (typeof window === 'undefined') return ''
+    return URL.createObjectURL(file)
+  }
+
+  // Función segura para revocar URLs
+  const revokeObjectURL = (url: string) => {
+    if (typeof window === 'undefined') return
+    URL.revokeObjectURL(url)
+  }
+
   const getNowDatetimeLocal = () => {
+    if (typeof window === 'undefined') return ''
     const now = new Date()
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
     return now.toISOString().slice(0, 16)
@@ -538,11 +551,11 @@ export const PhotoAnalyzerModal: React.FC<PhotoAnalyzerModalProps> = ({
     configureFileInputRef.current?.click()
   }
 
-  // Sincronizar previsualizaciones
+  // Sincronizar previsualizaciones - CORREGIDO
   useEffect(() => {
     if (selectedFiles.length > imagePreviewUrls.length) {
       const newFiles = selectedFiles.slice(imagePreviewUrls.length)
-      const newUrls = newFiles.map((file) => URL.createObjectURL(file))
+      const newUrls = newFiles.map((file) => createObjectURL(file))
       setImagePreviewUrls((prevUrls) => [...prevUrls, ...newUrls])
 
       const newDescriptions = Array(newFiles.length).fill("")
@@ -550,11 +563,22 @@ export const PhotoAnalyzerModal: React.FC<PhotoAnalyzerModalProps> = ({
       const newDates = Array(newFiles.length).fill(getNowDatetimeLocal())
       setCaptureDates((prev) => [...prev, ...newDates])
     } else if (selectedFiles.length < imagePreviewUrls.length) {
+      // Revocar URLs que ya no se necesitan
+      const urlsToRevoke = imagePreviewUrls.slice(selectedFiles.length)
+      urlsToRevoke.forEach(url => revokeObjectURL(url))
+      
       setImagePreviewUrls((prev) => prev.slice(0, selectedFiles.length))
       setDescriptions((prev) => prev.slice(0, selectedFiles.length))
       setCaptureDates((prev) => prev.slice(0, selectedFiles.length))
     }
   }, [selectedFiles, imagePreviewUrls.length])
+
+  // Cleanup de URLs al desmontar
+  useEffect(() => {
+    return () => {
+      imagePreviewUrls.forEach(url => revokeObjectURL(url))
+    }
+  }, [])
 
   // Cargar ecosistemas
   useEffect(() => {
@@ -602,10 +626,15 @@ export const PhotoAnalyzerModal: React.FC<PhotoAnalyzerModalProps> = ({
   }, [filterValues])
 
   const handleRemoveFile = useCallback((indexToRemove: number) => {
+    // Revocar URL antes de eliminar
+    if (imagePreviewUrls[indexToRemove]) {
+      revokeObjectURL(imagePreviewUrls[indexToRemove])
+    }
+    
     setSelectedFiles((prevFiles) => prevFiles.filter((_, index) => index !== indexToRemove))
     setDescriptions((prevDesc) => prevDesc.filter((_, index) => index !== indexToRemove))
     setCaptureDates((prevDates) => prevDates.filter((_, index) => index !== indexToRemove))
-  }, [])
+  }, [imagePreviewUrls])
 
   const handleDescriptionChange = useCallback((index: number, description: string) => {
     setDescriptions((prev) => prev.map((item, i) => (i === index ? description : item)))
@@ -616,6 +645,9 @@ export const PhotoAnalyzerModal: React.FC<PhotoAnalyzerModalProps> = ({
   }, [])
 
   const handleReset = useCallback(() => {
+    // Revocar todas las URLs
+    imagePreviewUrls.forEach(url => revokeObjectURL(url))
+    
     setSelectedFiles([])
     setAnalysisResult(null)
     setDescriptions([])
@@ -624,7 +656,8 @@ export const PhotoAnalyzerModal: React.FC<PhotoAnalyzerModalProps> = ({
     setEcosystemId(null)
     setCurrentStep("upload")
     setFilterValues({ brightness: 100, contrast: 100, saturate: 100 })
-  }, [])
+    setImagePreviewUrls([])
+  }, [imagePreviewUrls])
 
   const validateForm = () => {
     if (selectedFiles.length === 0) {

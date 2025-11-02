@@ -9,7 +9,7 @@
 
 # production
 /build
-
+/mapa-panel
 # debug
 npm-debug.log*
 yarn-debug.log*
